@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-
+from .models import AuthSession
 from .models import User
 
 
@@ -82,3 +82,39 @@ class UserAdmin(BaseUserAdmin):
     )
 
     filter_horizontal = ("groups", "user_permissions")
+
+
+@admin.register(AuthSession)
+class AuthSessionAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "user",
+        "created_at",
+        "expires_at",
+        "revoked_at",
+    )
+
+    list_filter = ("created_at", "revoked_at")
+
+    search_fields = ("user__email",)
+
+    readonly_fields = (
+        "id",
+        "user",
+        "refresh_token_hash",
+        "created_at",
+        "updated_at",
+        "last_used_at",
+        "expires_at",
+        "revoked_at",
+        "revocation_reason",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

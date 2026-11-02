@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "local-development-only-change-me")
@@ -7,6 +8,36 @@ DEBUG = False
 ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 
 AUTH_USER_MODEL = "accounts.User"
+
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": False,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "TOKEN_TYPE_CLAIM": "token_type",
+    "JTI_CLAIM": "jti",
+}
+
+
+REFRESH_COOKIE_NAME = "refresh_token"
+REFRESH_COOKIE_PATH = "/api/v1/auth/"
+REFRESH_COOKIE_HTTPONLY = True
+
+REFRESH_COOKIE_SECURE = (
+    os.environ.get("REFRESH_COOKIE_SECURE", "False").lower() == "true"
+)
+
+REFRESH_COOKIE_SAMESITE = os.environ.get("REFRESH_COOKIE_SAMESITE", "Lax")
+
+REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
+
+CORS_ALLOW_CREDENTIALS = True
 
 
 INSTALLED_APPS = [
@@ -65,10 +96,12 @@ DATABASES = {"default": {
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "accounts.authentication.SessionJWTAuthentication",
     ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
+
+
 SPECTACULAR_SETTINGS = {"TITLE": "Loyalty System API", "VERSION": "1.0.0"}
 
 CORS_ALLOWED_ORIGINS = ["http://localhost:5173"]

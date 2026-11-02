@@ -10,7 +10,7 @@ from django.contrib.auth.hashers import check_password
 from django.db import IntegrityError, transaction
 from accounts.models import EmailOTP, PendingRegistration, User
 from restaurants.models import Restaurant
-
+from .models import AuthSession
 
 class RegistrationConflict(APIException):
     status_code = 409
@@ -385,3 +385,173 @@ def resend_registration_otp(email):
             raise OTPDeliveryError() from exc
 
     return response
+
+
+# --------------------------------------------------
+#      Request Password Reset
+# --------------------------------------------------
+
+def request_password_reset(email):
+    """Send a reset OTP without disclosing account existence."""
+    email = email.strip().lower()
+    now = timezone.now()
+
+    response = {
+        "message": (
+            "If the email is registered, " "a password reset code will be sent."
+        )
+    }
+
+    user = User.objects.filter(
+        email__iexact=email,
+        is_active=True,
+    ).first()
+
+    if user is None:
+        return response
+
+    with transaction.atomic():
+        user = User.objects.select_for_update().get(pk=user.pk)
+
+        latest = (
+            EmailOTP.objects.filter(
+                user=user,
+                purpose=EmailOTP.Purpose.PASSWORD_RESET,
+            )
+            .order_by("-last_sent_at", "-created_at")
+            .first()
+        )
+
+        if latest is not None and latest.last_sent_at > now - timedelta(seconds=60):
+            return response
+
+        otp = f"{secrets.randbelow(1_000_000):06d}"
+
+        EmailOTP.objects.filter(
+            user=user,
+            purpose=EmailOTP.Purpose.PASSWORD_RESET,
+            consumed_at__isnull=True,
+            invalidated_at__isnull=True,
+        ).update(invalidated_at=now)
+
+        new_record = EmailOTP.objects.create(
+            purpose=EmailOTP.Purpose.PASSWORD_RESET,
+            user=user,
+            otp_hash=make_password(otp),
+            expires_at=now + timedelta(minutes=5),
+            last_sent_at=now,
+        )
+
+    # Send outside the database transaction.
+    try:
+        send_mail(
+            subject="Aviyal Eats - Password Reset",
+            message=(
+                f"Your password reset code is {otp}.\n\n"
+                "This code expires in 5 minutes.\n"
+                "Do not share it with anyone."
+            ),
+            from_email=None,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+    except Exception:
+        # Don't leave an unsent code usable.
+        EmailOTP.objects.filter(
+            pk=new_record.pk,
+            consumed_at__isnull=True,
+        ).update(invalidated_at=timezone.now())
+
+        # Keep the public response generic.
+        return response
+
+    return response
+
+
+# --------------------------------------------------
+#       Confirm Password Reset
+# --------------------------------------------------
+def confirm_password_reset(email, otp, new_password):
+    """Reset password and revoke every existing user session."""
+    email = email.strip().lower()
+    now = timezone.now()
+    error = None
+    succeeded = False
+
+    with transaction.atomic():
+        user = (
+            User.objects.select_for_update()
+            .filter(email__iexact=email, is_active=True)
+            .first()
+        )
+
+        if user is None:
+            error = OTPVerificationError("Invalid or expired reset code.")
+        else:
+            otp_record = (
+                EmailOTP.objects.select_for_update()
+                .filter(
+                    user=user,
+                    purpose=EmailOTP.Purpose.PASSWORD_RESET,
+                    consumed_at__isnull=True,
+                    invalidated_at__isnull=True,
+                )
+                .order_by("-created_at", "-id")
+                .first()
+            )
+
+            if otp_record is None:
+                error = OTPVerificationError("Invalid or expired reset code.")
+
+            elif otp_record.expires_at <= now:
+                error = OTPExpiredError()
+
+            elif otp_record.attempt_count >= 5:
+                otp_record.invalidated_at = now
+                otp_record.save(update_fields=["invalidated_at"])
+                error = OTPVerificationError("Too many incorrect attempts.")
+
+            elif not check_password(otp, otp_record.otp_hash):
+                otp_record.attempt_count += 1
+                fields = ["attempt_count"]
+
+                if otp_record.attempt_count >= 5:
+                    otp_record.invalidated_at = now
+                    fields.append("invalidated_at")
+
+                otp_record.save(update_fields=fields)
+                error = OTPVerificationError("Invalid or expired reset code.")
+
+            else:
+                user.set_password(new_password)
+                user.save()
+
+                otp_record.consumed_at = now
+                otp_record.verified_at = now
+                otp_record.save(update_fields=["consumed_at", "verified_at"])
+
+                # Invalidate any other reset OTPs.
+                EmailOTP.objects.filter(
+                    user=user,
+                    purpose=EmailOTP.Purpose.PASSWORD_RESET,
+                    consumed_at__isnull=True,
+                    invalidated_at__isnull=True,
+                ).update(invalidated_at=now)
+
+                # Immediately revoke existing access/refresh sessions.
+                AuthSession.objects.filter(
+                    user=user,
+                    revoked_at__isnull=True,
+                ).update(
+                    revoked_at=now,
+                    revocation_reason=(AuthSession.RevocationReason.PASSWORD_RESET),
+                    updated_at=now,
+                )
+
+                succeeded = True
+
+    # Raising outside atomic keeps incorrect-attempt counters.
+    if error is not None:
+        raise error
+
+    return succeeded
