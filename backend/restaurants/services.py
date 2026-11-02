@@ -4,7 +4,7 @@ from rest_framework.exceptions import APIException, PermissionDenied
 
 from accounts.models import User
 from approvals.models import ApprovalAuditLog
-
+from approvals.notifications import queue_restaurant_resubmitted
 from .models import Restaurant
 
 
@@ -76,5 +76,7 @@ def resubmit_rejected_restaurant(owner):
         new_status=Restaurant.Status.PENDING,
         reason="",
     )
+
+    queue_restaurant_resubmitted(restaurant)
 
     return restaurant

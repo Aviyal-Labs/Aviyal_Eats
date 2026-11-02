@@ -2,12 +2,13 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.exceptions import ValidationError
-
 from accounts.models import User
 from restaurants.models import Restaurant
-
 from .models import ApprovalAuditLog
-
+from .notifications import (
+    queue_restaurant_approved,
+    queue_restaurant_rejected,
+)
 
 class InvalidStatusTransition(APIException):
     status_code = 409
@@ -61,6 +62,8 @@ def approve_restaurant(restaurant_id, actor):
         reason="",
     )
 
+    queue_restaurant_approved(restaurant)
+
     return restaurant
 
 
@@ -101,5 +104,7 @@ def reject_restaurant(restaurant_id, actor, reason):
         new_status=Restaurant.Status.REJECTED,
         reason=reason,
     )
+
+    queue_restaurant_rejected(restaurant)
 
     return restaurant
