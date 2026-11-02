@@ -1,5 +1,5 @@
 import uuid
-
+from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.validators import RegexValidator
 from django.db import models
@@ -7,6 +7,11 @@ from django.db.models.functions import Lower
 from django.utils import timezone
 
 from .managers import UserManager
+
+
+# ---------------------------
+#       USER MODEL
+# --------------------------
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -94,3 +99,137 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_restaurant_staff(self):
         return self.role == self.Role.STAFF
+
+
+# -------------------------------------
+#       PENDING REGISTRATION MODEL
+# -------------------------------------
+
+class PendingRegistration(models.Model):
+    """Temporary owner registration before email verification."""
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    email = models.EmailField(max_length=254)
+
+    mobile = models.CharField(max_length=20)
+
+    owner_full_name = models.CharField(max_length=150)
+
+    password_hash = models.CharField(max_length=128)
+
+    restaurant_name = models.CharField(max_length=200)
+
+    restaurant_phone = models.CharField(max_length=20)
+
+    city = models.CharField(max_length=100)
+
+    requested_slug = models.SlugField(max_length=100)
+
+    expires_at = models.DateTimeField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "accounts_pending_registration"
+        constraints = [
+            models.UniqueConstraint(
+                Lower("email"),
+                name="unique_pen_reg_email_ci",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["expires_at"],
+                name="pending_reg_expiry_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return self.email
+
+
+# -------------------------------------
+#       EMAIL OTP MODEL
+# -------------------------------------
+class EmailOTP(models.Model):
+    """Single-use email verification code metadata."""
+
+    class Purpose(models.TextChoices):
+        REGISTRATION = "REGISTRATION", "Registration"
+        PASSWORD_RESET = "PASSWORD_RESET", "Password Reset"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    purpose = models.CharField(
+        max_length=20,
+        choices=Purpose.choices,
+    )
+
+    pending_registration = models.ForeignKey(
+        "accounts.PendingRegistration",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="otps",
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="email_otps",
+    )
+
+    otp_hash = models.CharField(max_length=255)
+
+    expires_at = models.DateTimeField()
+
+    attempt_count = models.PositiveSmallIntegerField(default=0)
+
+    verified_at = models.DateTimeField(null=True, blank=True)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    invalidated_at = models.DateTimeField(null=True, blank=True)
+
+    last_sent_at = models.DateTimeField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "accounts_email_otp"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        purpose="REGISTRATION",
+                        pending_registration__isnull=False,
+                        user__isnull=True,
+                    )
+                    | models.Q(
+                        purpose="PASSWORD_RESET",
+                        pending_registration__isnull=True,
+                        user__isnull=False,
+                    )
+                ),
+                name="email_otp_correct_target",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["purpose", "expires_at"],
+                name="email_otp_purpose_expiry_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.purpose} OTP"
