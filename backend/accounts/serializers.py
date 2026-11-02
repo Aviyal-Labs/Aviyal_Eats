@@ -5,8 +5,6 @@ from rest_framework import serializers
 from .managers import UserManager
 
 
-
-
 # --------------------------------------------------
 #          Owner Registration Serializer
 # --------------------------------------------------
@@ -56,7 +54,6 @@ class OwnerRegistrationSerializer(serializers.Serializer):
         return value.lower()
 
 
-
 # --------------------------------------------------
 #          Verify otp for registration
 # --------------------------------------------------
@@ -68,8 +65,6 @@ class VerifyRegistrationOTPSerializer(serializers.Serializer):
         return value.strip().lower()
 
 
-
-
 # --------------------------------------------------
 #          Resend Registration Otp
 # --------------------------------------------------
@@ -78,3 +73,48 @@ class ResendRegistrationOTPSerializer(serializers.Serializer):
 
     def validate_email(self, value):
         return value.strip().lower()
+
+# --------------------------------------------------
+#          Login Serializer
+# --------------------------------------------------
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+# --------------------------------------------------
+#           PASSWORD RESET REQUEST
+# --------------------------------------------------
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+
+# --------------------------------------------------
+#           PASSWORD RESET CONFIRM
+# --------------------------------------------------
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.RegexField(regex=r"^\d{6}$")
+    new_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+    def validate_new_password(self, value):
+        try:
+            validate_password(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages)
+
+        return value

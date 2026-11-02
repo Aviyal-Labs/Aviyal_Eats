@@ -233,3 +233,146 @@ class EmailOTP(models.Model):
 
     def __str__(self):
         return f"{self.purpose} OTP"
+
+
+# -------------------------------------
+#       Auth Session Model
+# -------------------------------------
+class AuthSession(models.Model):
+    """Tracks refresh token sessions for each user."""
+
+    class RevocationReason(models.TextChoices):
+        LOGOUT = "LOGOUT", "Logout"
+        LOGOUT_ALL = "LOGOUT_ALL", "Logout All Devices"
+        PASSWORD_RESET = "PASSWORD_RESET", "Password Reset"
+        ROTATION_COMPROMISE = (
+            "ROTATION_COMPROMISE",
+            "Refresh Token Replay",
+        )
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="auth_sessions",
+    )
+
+    refresh_token_hash = models.CharField(
+        max_length=255,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    last_used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    expires_at = models.DateTimeField()
+
+    revoked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    revocation_reason = models.CharField(
+        max_length=30,
+        choices=RevocationReason.choices,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "accounts_auth_session"
+
+        indexes = [
+            models.Index(
+                fields=["user", "revoked_at"],
+                name="auth_session_user_rev_idx",
+            ),
+            models.Index(
+                fields=["expires_at"],
+                name="auth_session_expiry_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Session {self.id} - {self.user.email}"
+
+    @property
+    def is_active(self):
+        now = timezone.now()
+
+        return self.revoked_at is None and self.expires_at > now
+
+    def revoke(self, reason=RevocationReason.LOGOUT):
+        if self.revoked_at is not None:
+            return
+
+        self.revoked_at = timezone.now()
+        self.revocation_reason = reason
+
+        self.save(
+            update_fields=[
+                "revoked_at",
+                "revocation_reason",
+                "updated_at",
+            ]
+        )
+
+
+
+# -------------------------------------
+#       Login Throttle Model
+# -------------------------------------
+class LoginThrottle(models.Model):
+    """Persistent counters for login security."""
+
+    class Scope(models.TextChoices):
+        ACCOUNT = "ACCOUNT", "Account"
+        IP = "IP", "IP Address"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    scope = models.CharField(
+        max_length=10,
+        choices=Scope.choices,
+    )
+
+    # HMAC digest, not a raw email or IP address.
+    identifier = models.CharField(max_length=64)
+
+    attempt_count = models.PositiveIntegerField(default=0)
+
+    window_started_at = models.DateTimeField(
+        default=timezone.now,
+    )
+
+    locked_until = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "accounts_login_throttle"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["scope", "identifier"],
+                name="unique_login_throttle_key",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.scope} throttle"
