@@ -6,6 +6,9 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "local-development-only-change-
 DEBUG = False
 ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 
+AUTH_USER_MODEL = "accounts.User"
+
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
