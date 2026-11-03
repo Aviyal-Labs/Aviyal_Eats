@@ -1,3 +1,4 @@
+
 services:
   db:
     image: postgres:16-alpine
@@ -11,6 +12,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   backend:
+    image: aviyal_eats-backend:latest
     build: ./backend
     volumes:
       - ./backend:/app
@@ -22,6 +24,30 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-local_dev_password}
     ports:
       - "127.0.0.1:8000:8000"
+    depends_on:
+      - db
+
+  email_worker:
+    image: aviyal_eats-backend:latest
+    pull_policy: never
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-local_dev_password}
+      PYTHONUNBUFFERED: "1"
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          python manage.py process_email_queue
+          sleep 15
+        done
+    restart: unless-stopped
     depends_on:
       - db
 
