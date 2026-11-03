@@ -1,0 +1,3 @@
+import { z } from 'zod';
+const compactPhone = (value) => value.replace(/[\s().-]/g, '');
+export const restaurantEditSchema = z.object({ restaurant_name: z.string().trim().min(2, 'Enter the restaurant name.').max(200, 'Name must be 200 characters or fewer.'), restaurant_phone: z.string().trim().transform(compactPhone).refine((value) => /^\+[1-9]\d{7,14}$/.test(value), 'Use an international phone number.'), city: z.string().trim().min(2, 'Enter the city.').max(100, 'City must be 100 characters or fewer.'), slug: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use lowercase letters, numbers, and single hyphens only.').max(100, 'Slug must be 100 characters or fewer.') });

@@ -1,0 +1,8 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { Button, Card, PageHeader } from '../../components/common/Primitives';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
+import { useAuth } from '../../hooks/useAuth';
+
+export default function AdminSettingsPage() { const { logoutAll } = useAuth(); const navigate = useNavigate(); const [open, setOpen] = useState(false); const [busy, setBusy] = useState(false); const submit = async () => { setBusy(true); try { await logoutAll(); toast.success('Signed out of all devices.'); navigate('/login', { replace: true }); } finally { setBusy(false); setOpen(false); } }; return <><PageHeader eyebrow="Administration" title="Settings" description="Manage your administrator session security." /><Card className="max-w-2xl"><h2 className="font-semibold">Logout all devices</h2><p className="mt-2 text-sm leading-6 text-muted">End every active Super Admin session in this browser.</p><Button variant="danger" className="mt-5" onClick={() => setOpen(true)}>Logout all devices</Button></Card><ConfirmDialog open={open} title="Logout all devices?" description="Every active mock session will be cleared from this browser." confirmLabel="Logout all devices" variant="danger" busy={busy} onConfirm={submit} onCancel={() => setOpen(false)} /></>; }

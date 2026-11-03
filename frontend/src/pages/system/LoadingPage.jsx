@@ -1,0 +1,1 @@
+import { Loader2 } from 'lucide-react'; export default function LoadingPage() { return <main className="grid min-h-screen place-items-center bg-cream"><div className="text-center"><Loader2 className="mx-auto animate-spin text-brand" /><p className="mt-3 text-sm text-muted">Loading your workspace…</p></div></main>; }

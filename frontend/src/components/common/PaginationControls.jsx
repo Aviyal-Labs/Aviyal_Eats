@@ -1,0 +1,3 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from './Primitives';
+export default function PaginationControls({ page, totalPages, onPrevious, onNext }) { return <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4"><p className="text-xs text-muted">Page {page} of {totalPages}</p><div className="flex gap-2"><Button variant="secondary" aria-label="Previous page" disabled={page <= 1} onClick={onPrevious}><ChevronLeft size={16} />Previous</Button><Button variant="secondary" aria-label="Next page" disabled={page >= totalPages} onClick={onNext}>Next<ChevronRight size={16} /></Button></div></div>; }

@@ -1,0 +1,1 @@
+export default function EmptyState({ title = 'Nothing here yet.', description = 'Try changing your filters.' }) { return <div className="p-10 text-center"><p className="font-semibold text-ink">{title}</p><p className="mt-1 text-sm text-muted">{description}</p></div>; }

@@ -1,0 +1,2 @@
+import { useCallback, useEffect, useState } from 'react';
+export default function useAsyncData(loader, deps = []) { const [state, setState] = useState({ data: null, loading: true, error: null }); const run = useCallback(async () => { setState((current) => ({ ...current, loading: true, error: null })); try { setState({ data: await loader(), loading: false, error: null }); } catch (error) { setState({ data: null, loading: false, error }); } }, deps); useEffect(() => { run(); }, [run]); return { ...state, retry: run }; }
