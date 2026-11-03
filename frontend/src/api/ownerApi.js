@@ -1,3 +1,12 @@
-import { apiClient } from './client'; import { mockOwnerApi } from './mocks/mockOwnerApi';
-const useMocks = import.meta.env.VITE_USE_MOCKS !== 'false';
-export const ownerApi = { dashboard: () => useMocks ? mockOwnerApi.dashboard() : apiClient.get('/api/v1/owner/dashboard/').then((r) => r.data.data), profile: () => useMocks ? mockOwnerApi.profile() : apiClient.get('/api/v1/owner/profile/').then((r) => r.data.data), restaurant: () => useMocks ? mockOwnerApi.restaurant() : apiClient.get('/api/v1/owner/restaurant/').then((r) => r.data.data), updateRestaurant: (data) => useMocks ? mockOwnerApi.updateRestaurant(data) : apiClient.patch('/api/v1/owner/restaurant/', data), resubmit: () => useMocks ? mockOwnerApi.resubmit() : apiClient.post('/api/v1/owner/restaurant/resubmit/') };
+import { apiClient } from './client.js';
+import { endpoints } from './endpoints.js';
+
+export const ownerApi = {
+  async updateRestaurant({ name, phone, city }) {
+    const { data } = await apiClient.patch(endpoints.owner.restaurant, { name, phone, city });
+    return data.data;
+  },
+  async resubmit() {
+    return (await apiClient.post(endpoints.owner.resubmit)).data.data;
+  },
+};

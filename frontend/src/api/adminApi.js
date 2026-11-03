@@ -1,3 +1,39 @@
-import { apiClient } from './client'; import { mockAdminApi } from './mocks/mockAdminApi';
-const useMocks = import.meta.env.VITE_USE_MOCKS !== 'false';
-export const adminApi = { list: (params) => useMocks ? mockAdminApi.list(params) : apiClient.get('/api/v1/admin/restaurants/', { params }).then((r) => r.data.data), get: (id) => useMocks ? mockAdminApi.get(id) : apiClient.get(`/api/v1/admin/restaurants/${id}/`).then((r) => r.data.data), approve: (id) => useMocks ? mockAdminApi.approve(id) : apiClient.post(`/api/v1/admin/restaurants/${id}/approve/`), reject: (id, data) => useMocks ? mockAdminApi.reject(id, data.reason) : apiClient.post(`/api/v1/admin/restaurants/${id}/reject/`, data), history: (id) => useMocks ? mockAdminApi.history(id) : apiClient.get(`/api/v1/admin/restaurants/${id}/history/`) };
+import { apiClient } from './client.js';
+import { endpoints } from './endpoints.js';
+
+
+
+export const RESTAURANT_PAGE_SIZE = 20;
+export const SEARCH_DEBOUNCE_MS = 300;
+
+function mapRestaurant(restaurant) {
+  return { ...restaurant, owner_full_name: restaurant.owner_name };
+}
+
+export const adminApi = {
+  async list(params = {}) {
+    const { status, search, page = 1, page_size = RESTAURANT_PAGE_SIZE } = params;
+    const { data } = await apiClient.get(endpoints.admin.restaurants, {
+      params: { status, search, page, page_size },
+    });
+    return {
+      ...data.data,
+      results: data.data.results.map(mapRestaurant),
+      page,
+      total_pages: Math.max(1, Math.ceil(data.data.count / page_size)),
+    };
+  },
+  async get(id) {
+    const { data } = await apiClient.get(endpoints.admin.restaurant(id));
+    return {
+      ...mapRestaurant(data.data.restaurant),
+      history: data.data.approval_history,
+    };
+  },
+  async approve(id) {
+    return (await apiClient.post(endpoints.admin.approve(id))).data.data;
+  },
+  async reject(id, data) {
+    return (await apiClient.post(endpoints.admin.reject(id), data)).data.data;
+  },
+};

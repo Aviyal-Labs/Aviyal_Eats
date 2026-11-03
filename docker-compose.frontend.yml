@@ -1,0 +1,12 @@
+# Local frontend integration settings; backend source and its .env stay untouched.
+# docker compose -f docker-compose.yml -f docker-compose.frontend.yml up --build -d
+services:
+  backend:
+    environment:
+      DB_NAME: Aviyal_Eats
+  email_worker:
+    environment:
+      DB_NAME: Aviyal_Eats
+  frontend:
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
