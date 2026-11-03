@@ -102,6 +102,8 @@ REST_FRAMEWORK = {
 }
 
 
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
+
 SPECTACULAR_SETTINGS = {"TITLE": "Loyalty System API", "VERSION": "1.0.0"}
 
 CORS_ALLOWED_ORIGINS = ["http://localhost:5173"]

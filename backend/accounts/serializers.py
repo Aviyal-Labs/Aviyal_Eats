@@ -118,3 +118,57 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
             raise serializers.ValidationError(exc.messages)
 
         return value
+
+# --------------------------------------------------
+#           Google Login serializer
+# --------------------------------------------------
+class GoogleLoginSerializer(serializers.Serializer):
+    credential = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        max_length=10000,
+        trim_whitespace=True,
+    )
+
+
+# --------------------------------------------------
+#           Google Sign Up serializer
+# --------------------------------------------------
+class GoogleSignupSerializer(serializers.Serializer):
+    credential = serializers.CharField(
+        max_length=10000,
+        trim_whitespace=True,
+    )
+
+    mobile = serializers.CharField(
+        max_length=20,
+    )
+
+    restaurant_name = serializers.CharField(
+        max_length=255,
+    )
+
+    restaurant_phone = serializers.CharField(
+        max_length=20,
+    )
+
+    city = serializers.CharField(
+        max_length=100,
+    )
+
+    requested_slug = serializers.SlugField(
+        max_length=100,
+    )
+
+    def validate_mobile(self, value):
+        value = value.strip()
+
+        if not value:
+            raise serializers.ValidationError(
+                "Mobile number is required."
+            )
+
+        return value
+
+    def validate_requested_slug(self, value):
+        return value.strip().lower()

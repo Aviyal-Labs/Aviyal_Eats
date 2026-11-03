@@ -36,6 +36,12 @@ from .tokens import (
     RefreshAuthenticationError,
 )
 from .login_security import authenticate_with_limits
+from django.conf import settings
+from .google_services import authenticate_google_owner
+from .serializers import GoogleLoginSerializer
+from .tokens import create_login_session
+from .google_services import register_google_owner
+from .serializers import GoogleSignupSerializer
 
 # ----------------------------
 #      Register View
@@ -423,3 +429,123 @@ class PasswordResetConfirmView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+# ----------------------------------
+#      Google Login View
+# -----------------------------------
+class GoogleLoginView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        serializer = GoogleLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = authenticate_google_owner(serializer.validated_data["credential"])
+
+        tokens = create_login_session(user)
+
+        restaurant = getattr(user, "restaurant", None)
+
+        response = Response(
+            {
+                "success": True,
+                "message": "Google login successful.",
+                "data": {
+                    "access_token": tokens["access_token"],
+                    "access_expires_in": tokens["access_expires_in"],
+                    "user": {
+                        "id": str(user.id),
+                        "email": user.email,
+                        "full_name": user.full_name,
+                        "role": user.role,
+                    },
+                    "restaurant": (
+                        {
+                            "id": str(restaurant.id),
+                            "name": restaurant.name,
+                            "slug": restaurant.slug,
+                            "status": restaurant.status,
+                        }
+                        if restaurant is not None
+                        else None
+                    ),
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+        response.set_cookie(
+            key=settings.REFRESH_COOKIE_NAME,
+            value=tokens["refresh_token"],
+            max_age=settings.REFRESH_COOKIE_MAX_AGE,
+            path=settings.REFRESH_COOKIE_PATH,
+            secure=settings.REFRESH_COOKIE_SECURE,
+            httponly=True,
+            samesite=settings.REFRESH_COOKIE_SAMESITE,
+        )
+
+        return response
+
+
+# ----------------------------------
+#      Google SignUp View
+# -----------------------------------
+
+class GoogleSignupView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        serializer = GoogleSignupSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+
+        owner, restaurant = register_google_owner(
+            serializer.validated_data
+        )
+
+        tokens = create_login_session(owner)
+
+        response = Response(
+            {
+                "success": True,
+                "message": (
+                    "Google signup successful. "
+                    "Restaurant pending approval."
+                ),
+                "data": {
+                    "access_token": tokens["access_token"],
+                    "access_expires_in": tokens[
+                        "access_expires_in"
+                    ],
+                    "user": {
+                        "id": str(owner.id),
+                        "email": owner.email,
+                        "full_name": owner.full_name,
+                        "role": owner.role,
+                    },
+                    "restaurant": {
+                        "id": str(restaurant.id),
+                        "name": restaurant.name,
+                        "slug": restaurant.slug,
+                        "status": restaurant.status,
+                    },
+                },
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+        response.set_cookie(
+            key=settings.REFRESH_COOKIE_NAME,
+            value=tokens["refresh_token"],
+            max_age=settings.REFRESH_COOKIE_MAX_AGE,
+            path=settings.REFRESH_COOKIE_PATH,
+            secure=settings.REFRESH_COOKIE_SECURE,
+            httponly=True,
+            samesite=settings.REFRESH_COOKIE_SAMESITE,
+        )
+
+        return response
