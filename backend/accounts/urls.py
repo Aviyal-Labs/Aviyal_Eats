@@ -12,7 +12,10 @@ from .views import (
     LogoutAllView,
     PasswordResetRequestView,
     PasswordResetConfirmView,
+    GoogleLoginView,
+    GoogleSignupView
 )
+
 
 urlpatterns = [
     path("register/", RegisterView.as_view(), name="register"),
@@ -41,5 +44,15 @@ urlpatterns = [
         "password-reset/confirm/",
         PasswordResetConfirmView.as_view(),
         name="password-reset-confirm",
+    ),
+    path(
+        "google/login/",
+        GoogleLoginView.as_view(),
+        name="google-login",
+    ),
+    path(
+    "google/signup/",
+    GoogleSignupView.as_view(),
+    name="google-signup",
     ),
 ]

@@ -327,7 +327,6 @@ class AuthSession(models.Model):
         )
 
 
-
 # -------------------------------------
 #       Login Throttle Model
 # -------------------------------------
@@ -376,3 +375,52 @@ class LoginThrottle(models.Model):
 
     def __str__(self):
         return f"{self.scope} throttle"
+
+
+
+
+
+
+#-------------------------------------
+#     Google Identity Users
+#-------------------------------------
+class GoogleIdentity(models.Model):
+    """
+    Links a verified Google account to an Aviyal Eats user.
+
+    The Google 'sub' claim is a stable account identifier.
+    Email alone must not be used for automatic account linking.
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="google_identity",
+    )
+
+    google_sub = models.CharField(
+        max_length=255,
+        unique=True,
+    )
+
+    google_email = models.EmailField()
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        db_table = "accounts_google_identity"
+
+    def __str__(self):
+        return f"Google identity for {self.user.email}"
