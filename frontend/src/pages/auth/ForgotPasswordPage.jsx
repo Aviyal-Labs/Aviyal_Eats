@@ -7,4 +7,33 @@ import { authApi } from '../../api/authApi';
 import mapApiError from '../../api/errorMapper';
 import { passwordResetRequestSchema } from '../../schemas/passwordResetSchema';
 
-export default function ForgotPasswordPage() { const navigate = useNavigate(); const { register, handleSubmit, setError, formState: { errors, isSubmitting } } = useForm({ resolver: zodResolver(passwordResetRequestSchema), defaultValues: { email: '' }, mode: 'onBlur' }); const submit = async (data) => { try { const result = await authApi.requestPasswordReset(data); toast.success(result?.message || 'If the email is registered, a code has been sent.'); navigate('/reset-password', { state: { email: data.email, otpExpiresInSeconds: result?.otp_expires_in_seconds || 300 } }); } catch (error) { const mapped = mapApiError(error); setError('root.server', { type: 'server', message: mapped.message || 'We could not process the request.' }); } }; return <Card><p className="text-xs font-bold uppercase tracking-[.18em] text-brand">Account recovery</p><h1 className="display mt-2 text-3xl">Reset your password</h1><p className="mt-2 text-sm text-muted">We’ll send a six-digit reset code if the account exists.</p>{errors.root?.server && <p role="alert" className="mt-5 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{errors.root.server.message}</p>}<form onSubmit={handleSubmit(submit)} className="mt-7 grid gap-4" noValidate><Field label="Email" id="reset-email" type="email" placeholder="you@restaurant.com" error={errors.email?.message} {...register('email')} /><Button disabled={isSubmitting} type="submit">{isSubmitting ? 'Sending…' : 'Send reset code'}</Button></form><Link className="mt-5 block text-center text-sm font-semibold text-brand" to="/login">Back to sign in</Link></Card>; }
+export default function ForgotPasswordPage() {
+  const navigate = useNavigate();
+  const { register, handleSubmit, setError, formState: { errors, isSubmitting } } = useForm({
+    resolver: zodResolver(passwordResetRequestSchema), defaultValues: { email: '' }, mode: 'onBlur',
+  });
+
+  async function requestReset(values) {
+    try {
+      const result = await authApi.requestPasswordReset(values);
+      toast.success(result.message || 'If eligible, a reset code has been sent.');
+      navigate('/reset-password', { state: { email: values.email } });
+    } catch (failure) {
+      const error = mapApiError(failure);
+      setError('root.server', { message: error.message });
+      if (error.fields.email) setError('email', { message: error.fields.email[0] });
+    }
+  }
+
+  return <Card>
+    <p className="text-xs font-bold uppercase tracking-[.18em] text-brand">Account recovery</p>
+    <h1 className="display mt-2 text-3xl">Reset your password</h1>
+    <p className="mt-2 text-sm text-muted">We will send a six-digit reset code if the account is eligible.</p>
+    <form onSubmit={handleSubmit(requestReset)} className="mt-7 grid gap-4" noValidate>
+      <Field label="Email" id="reset-email" type="email" autoComplete="email" error={errors.email?.message} {...register('email')} />
+      {errors.root?.server && <p role="alert" className="text-sm text-red-700">{errors.root.server.message}</p>}
+      <Button disabled={isSubmitting} type="submit">{isSubmitting ? 'Sending...' : 'Send reset code'}</Button>
+    </form>
+    <Link className="mt-5 block text-center text-sm font-semibold text-brand" to="/login">Back to sign in</Link>
+  </Card>;
+}

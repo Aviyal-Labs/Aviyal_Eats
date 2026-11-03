@@ -26,12 +26,22 @@ import AdminSettingsPage from '../pages/admin/AdminSettingsPage';
 import LoadingPage from '../pages/system/LoadingPage';
 import ForbiddenPage from '../pages/system/ForbiddenPage';
 import NotFoundPage from '../pages/system/NotFoundPage';
+import PublicLayout from '../layouts/PublicLayout';
+import HomePage from '../pages/public/HomePage';
+import FeaturesPage from '../pages/public/FeaturesPage';
+import PricingPage from '../pages/public/PricingPage';
+import RestaurantSlugRoute from '../routes/RestaurantSlugRoute';
 
 const element = (Component, props, ...children) => createElement(Component, props, ...children);
 const Providers = () => element(AuthProvider, null, element(Outlet));
 
 export const router = createBrowserRouter([
   { element: element(Providers), children: [
+    { element: element(PublicLayout), children: [
+      { path: '/', element: element(HomePage) },
+      { path: '/features', element: element(FeaturesPage) },
+      { path: '/pricing', element: element(PricingPage) },
+    ] },
     { element: element(AuthLayout), children: [
       { path: '/login', element: element(LoginPage) },
       { path: '/register', element: element(RegisterPage) },
@@ -42,6 +52,7 @@ export const router = createBrowserRouter([
     { element: element(ProtectedRoute, null, element(RoleRoute, { role: 'OWNER' }, element(OwnerLayout))), children: [
       { path: '/owner', element: element(Navigate, { to: '/owner/dashboard', replace: true }) },
       { path: '/owner/dashboard', element: element(ApprovalGate, { allowed: ['APPROVED'] }, element(OwnerDashboardPage)) },
+      { path: '/r/:restaurantSlug/dashboard', element: element(ApprovalGate, { allowed: ['APPROVED'] }, element(RestaurantSlugRoute, null, element(OwnerDashboardPage))) },
       { path: '/owner/pending', element: element(ApprovalGate, { allowed: ['PENDING'] }, element(PendingApprovalPage)) },
       { path: '/owner/rejected', element: element(ApprovalGate, { allowed: ['REJECTED'] }, element(RejectedRestaurantPage)) },
       { path: '/owner/restaurant/edit', element: element(ApprovalGate, { allowed: ['REJECTED'] }, element(EditRejectedRestaurantPage)) },

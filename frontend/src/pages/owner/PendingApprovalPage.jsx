@@ -1,2 +1,36 @@
-import { Link, useLocation } from 'react-router-dom'; import { Clock3 } from 'lucide-react'; import { useAuth } from '../../hooks/useAuth'; import { Badge, Card, PageHeader } from '../../components/common/Primitives';
-export default function PendingApprovalPage() { const { restaurant } = useAuth(); const location = useLocation(); return <><PageHeader eyebrow="Owner workspace" title="Your restaurant is under review." description="We’ll notify you when the approval team has finished reviewing your details." />{location.state?.registrationSubmitted && <div role="status" className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Email verified. Your registration has been submitted for Super Admin approval.</div>}<Card className="max-w-2xl"><div className="flex items-start gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-orange-50 text-orange-600"><Clock3 /></span><div><Badge tone="orange">PENDING APPROVAL</Badge><h2 className="display mt-3 text-2xl">{restaurant?.name || 'Coconut Kitchen'}</h2><p className="mt-2 text-sm leading-6 text-muted">Your profile is read-only while our team reviews the submission. You can still visit your profile and sign out.</p><Link className="mt-5 inline-block text-sm font-semibold text-brand" to="/owner/profile">Review profile →</Link></div></div></Card></>; }
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
+import { Badge, Button, Card, PageHeader } from '../../components/common/Primitives';
+
+export default function PendingApprovalPage() {
+  const { restaurant, refreshProfile } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function checkStatus() {
+    setBusy(true);
+    setError('');
+    try {
+      await refreshProfile();
+    } catch {
+      setError('Unable to check your status. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <>
+    <PageHeader eyebrow="Owner workspace" title="Your restaurant is under review." description="Check here for the latest approval status." />
+    <Card className="max-w-2xl">
+      <Badge tone="orange">PENDING APPROVAL</Badge>
+      <h2 className="display mt-3 text-2xl">{restaurant?.name || 'Not available'}</h2>
+      <p className="mt-2 text-sm leading-6 text-muted">Your submission is read-only while the approval team reviews it.</p>
+      {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
+      <div className="mt-5 flex flex-wrap items-center gap-4">
+        <Button disabled={busy} onClick={checkStatus}>{busy ? 'Checking...' : 'Check approval status'}</Button>
+        <Link className="text-sm font-semibold text-brand" to="/owner/profile">Review profile</Link>
+      </div>
+    </Card>
+  </>;
+}

@@ -1,12 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { ownerApi } from '../../api/ownerApi';
 import { Button, Card, Field, PageHeader } from '../../components/common/Primitives';
-import LoadingState from '../../components/common/LoadingState';
-import ErrorState from '../../components/common/ErrorState';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { restaurantEditSchema } from '../../schemas/restaurantEditSchema';
 import mapApiError from '../../api/errorMapper';
@@ -14,33 +12,56 @@ import { useAuth } from '../../hooks/useAuth';
 
 export default function EditRejectedRestaurantPage() {
   const navigate = useNavigate();
-  const { setSession } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const { restaurant, setSession, refreshProfile } = useAuth();
   const [pendingValues, setPendingValues] = useState(null);
-  const { register, reset, handleSubmit, setError, formState: { errors, isSubmitting } } = useForm({ resolver: zodResolver(restaurantEditSchema) });
+  const [busy, setBusy] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const submitting = useRef(false);
+  const { register, handleSubmit, setError, formState: { errors } } = useForm({
+    resolver: zodResolver(restaurantEditSchema),
+    defaultValues: { name: restaurant?.name || '', phone: restaurant?.phone || '', city: restaurant?.city || '' },
+  });
 
-  const load = () => { setLoading(true); ownerApi.restaurant().then((restaurant) => reset({ restaurant_name: restaurant.name, restaurant_phone: restaurant.phone, city: restaurant.city, slug: restaurant.slug })).catch(() => setLoadError('We could not load the rejected restaurant.')).finally(() => setLoading(false)); };
-  useEffect(load, [reset]);
-
-  const submit = (values) => { setPendingValues(values); setConfirmOpen(true); };
-  const resubmit = async () => {
-    setConfirmOpen(false);
+  async function saveAndResubmit() {
+    if (submitting.current || !pendingValues) return;
+    submitting.current = true;
+    setBusy(true);
+    setSubmitError('');
     try {
       const updated = await ownerApi.updateRestaurant(pendingValues);
-      const result = await ownerApi.resubmit();
-      setSession({ restaurant: result || updated });
+      setSession({ restaurant: updated });
+      const resubmitted = await ownerApi.resubmit();
+      setSession({ restaurant: resubmitted });
       toast.success('Restaurant resubmitted for review.');
       navigate('/owner/pending', { replace: true });
     } catch (error) {
       const mapped = mapApiError(error);
-      Object.entries(mapped.fields || {}).forEach(([field, message]) => setError(field, { type: 'server', message: Array.isArray(message) ? message[0] : message }));
-      toast.error(mapped.message || 'The restaurant could not be resubmitted.');
+      setSubmitError(mapped.message);
+      Object.entries(mapped.fields || {}).forEach(([field, messages]) => {
+        if (['name', 'phone', 'city'].includes(field)) {
+          setError(field, { type: 'server', message: Array.isArray(messages) ? messages[0] : messages });
+        }
+      });
+      if (mapped.status === 409) await refreshProfile().catch(() => {});
+    } finally {
+      submitting.current = false;
+      setBusy(false);
+      setPendingValues(null);
     }
-  };
+  }
 
-  if (loading) return <Card><LoadingState label="Loading restaurant details…" /></Card>;
-  if (loadError) return <Card><ErrorState message={loadError} onRetry={load} /></Card>;
-  return <><PageHeader eyebrow="Restaurant details" title="Update your submission" description="Only rejected restaurant details can be edited in Week 1." /><Card className="max-w-2xl"><form onSubmit={handleSubmit(submit)} className="grid gap-4 sm:grid-cols-2" noValidate><Field label="Restaurant name" id="restaurant_name" error={errors.restaurant_name?.message} {...register('restaurant_name')} /><Field label="Phone" id="restaurant_phone" error={errors.restaurant_phone?.message} {...register('restaurant_phone')} /><Field label="City" id="city" error={errors.city?.message} {...register('city')} /><Field label="Slug" id="slug" error={errors.slug?.message} {...register('slug')} /><Button disabled={isSubmitting} type="submit" className="sm:col-span-2">{isSubmitting ? 'Saving…' : 'Save and resubmit'}</Button></form></Card><ConfirmDialog open={confirmOpen} title="Resubmit restaurant?" description="Your updated details will return the restaurant to pending approval." confirmLabel="Resubmit" busy={isSubmitting} onConfirm={resubmit} onCancel={() => setConfirmOpen(false)} /></>;
+  return <>
+    <PageHeader eyebrow="Restaurant details" title="Update your submission" description="Review the restaurant details and submit them for another review." />
+    <Card className="max-w-2xl">
+      <p className="mb-5 text-sm text-muted">Your restaurant URL stays the same. If phone or city is blank, enter the current details before submitting.</p>
+      {submitError && <p role="alert" className="mb-4 text-sm text-red-700">{submitError}</p>}
+      <form onSubmit={handleSubmit(setPendingValues)} className="grid gap-4 sm:grid-cols-2" noValidate>
+        <Field label="Restaurant name" id="name" error={errors.name?.message} {...register('name')} />
+        <Field label="Phone" id="phone" type="tel" error={errors.phone?.message} {...register('phone')} />
+        <Field label="City" id="city" error={errors.city?.message} {...register('city')} />
+        <Button disabled={busy} type="submit" className="sm:col-span-2">{busy ? 'Saving...' : 'Save and resubmit'}</Button>
+      </form>
+    </Card>
+    <ConfirmDialog open={Boolean(pendingValues)} title="Resubmit restaurant?" description="Your updated details will return the restaurant to pending approval." confirmLabel="Resubmit" busy={busy} onConfirm={saveAndResubmit} onCancel={() => { if (!busy) setPendingValues(null); }} />
+  </>;
 }

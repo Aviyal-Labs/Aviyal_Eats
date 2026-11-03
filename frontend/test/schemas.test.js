@@ -43,15 +43,14 @@ test('registrationSchema: invalid email fails', () => {
   assert.ok(failingPaths(result).includes('email'), `Paths: ${failingPaths(result)}`);
 });
 
-test('registrationSchema: non-Indian mobile fails', () => {
+test('registrationSchema: international E.164 mobile passes', () => {
   const result = registrationSchema.safeParse({ ...validReg, mobile: '+14155552671' });
-  assert.ok(!result.success);
-  assert.ok(failingPaths(result).includes('mobile'), `Paths: ${failingPaths(result)}`);
+  assert.ok(result.success);
 });
 
-test('registrationSchema: Indian mobile without 6-9 start digit fails', () => {
-  const result = registrationSchema.safeParse({ ...validReg, mobile: '+915555555555' });
-  assert.ok(!result.success, 'Should fail for mobile starting with 5');
+test('registrationSchema: mobile without country code fails', () => {
+  const result = registrationSchema.safeParse({ ...validReg, mobile: '9876543210' });
+  assert.ok(!result.success);
 });
 
 test('registrationSchema: short password fails', () => {
@@ -201,33 +200,16 @@ test('passwordResetSchema: weak new_password fails', () => {
 });
 
 // --- Restaurant Edit Schema ---
-const validEdit = {
-  restaurant_name: 'Coconut Kitchen',
-  restaurant_phone: '+914842000000',
-  city: 'Kochi',
-  slug: 'coconut-kitchen',
-};
-
-test('restaurantEditSchema: valid data passes', () => {
-  const result = restaurantEditSchema.safeParse(validEdit);
-  assert.ok(result.success, JSON.stringify(result.error?.issues));
+const validEdit = { name: 'Test Kitchen', phone: '+914842000000', city: 'Kochi' };
+test('restaurant edit accepts the verified fields and strips an unsupported slug', () => {
+  assert.deepEqual(restaurantEditSchema.parse({ ...validEdit, slug: 'ignored' }), validEdit);
 });
-
-test('restaurantEditSchema: empty name fails', () => {
-  const result = restaurantEditSchema.safeParse({ ...validEdit, restaurant_name: '' });
-  assert.ok(!result.success);
+test('restaurant edit rejects an empty name', () => {
+  assert.equal(restaurantEditSchema.safeParse({ ...validEdit, name: '' }).success, false);
 });
-
-test('restaurantEditSchema: invalid phone fails', () => {
-  const result = restaurantEditSchema.safeParse({ ...validEdit, restaurant_phone: 'not-a-phone' });
-  assert.ok(!result.success);
+test('restaurant edit rejects an invalid phone', () => {
+  assert.equal(restaurantEditSchema.safeParse({ ...validEdit, phone: 'invalid' }).success, false);
 });
-
-test('restaurantEditSchema: invalid slug (uppercase) fails', () => {
-  const result = restaurantEditSchema.safeParse({ ...validEdit, slug: 'UPPERCASE' });
-  assert.ok(!result.success, 'Should fail for uppercase slug');
-});
-
 // --- Rejection Schema ---
 test('rejectionSchema: valid reason passes', () => {
   const result = rejectionSchema.safeParse({ reason: 'Please provide a business license.' });
@@ -245,12 +227,12 @@ test('rejectionSchema: whitespace-only reason fails', () => {
   assert.ok(!result.success, 'Should fail for whitespace-only reason');
 });
 
-test('rejectionSchema: reason exceeding 500 chars fails', () => {
-  const result = rejectionSchema.safeParse({ reason: 'a'.repeat(501) });
+test('rejectionSchema: reason exceeding 2000 chars fails', () => {
+  const result = rejectionSchema.safeParse({ reason: 'a'.repeat(2001) });
   assert.ok(!result.success);
 });
 
-test('rejectionSchema: reason at exactly 500 chars passes', () => {
-  const result = rejectionSchema.safeParse({ reason: 'a'.repeat(500) });
+test('rejectionSchema: reason at exactly 2000 chars passes', () => {
+  const result = rejectionSchema.safeParse({ reason: 'a'.repeat(2000) });
   assert.ok(result.success);
 });

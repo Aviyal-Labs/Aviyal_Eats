@@ -1,2 +1,12 @@
 import { formatDateTime } from '../../utils/dateTime';
-export default function ApprovalTimeline({ events = [] }) { if (!events.length) return <p className="mt-4 text-sm text-muted">No approval events yet.</p>; return <ol className="mt-5 grid gap-5 border-l-2 border-emerald-100 pl-5">{events.map((event) => <li key={event.id}><p className="font-semibold">{event.action}</p><p className="mt-1 text-sm text-muted">{event.reason || `${event.previous_status || 'New'} → ${event.new_status}`}</p><p className="mt-1 text-xs text-muted">{event.actor?.full_name || 'System'} · {formatDateTime(event.created_at)}</p></li>)}</ol>; }
+
+export default function ApprovalTimeline({ events = [] }) {
+  if (!events.length) return <p className="mt-4 text-sm text-muted">No approval events yet.</p>;
+  return <ol className="mt-5 grid gap-5 border-l-2 border-emerald-100 pl-5">
+    {events.map((event) => <li key={event.id}>
+      <p className="font-semibold">{event.action}</p>
+      <p className="mt-1 text-sm text-muted">{event.reason || `${event.previous_status || 'New'} → ${event.new_status}`}</p>
+      <p className="mt-1 text-xs text-muted">{event.actor_email || event.actor?.full_name || 'System'} · {formatDateTime(event.created_at)}</p>
+    </li>)}
+  </ol>;
+}

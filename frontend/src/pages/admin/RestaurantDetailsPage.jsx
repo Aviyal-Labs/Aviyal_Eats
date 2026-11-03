@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { adminApi } from '../../api/adminApi';
@@ -23,24 +23,27 @@ export default function RestaurantDetailsPage() {
   const [requestId, setRequestId] = useState('');
   const [dialog, setDialog] = useState(null);
   const [busy, setBusy] = useState(false);
+  const actionInProgress = useRef(false);
 
-  const load = () => { setLoading(true); setError(''); adminApi.get(id).then((result) => { if (!result) throw new Error('Restaurant not found.'); setData(result); }).catch((failure) => setError(failure.message || 'Restaurant could not be loaded.')).finally(() => setLoading(false)); };
+  const load = () => { setLoading(true); setError(''); adminApi.get(id).then((result) => { if (!result) throw new Error('Restaurant not found.'); setData(result); }).catch((failure) => setError(mapApiError(failure).message)).finally(() => setLoading(false)); };
   useEffect(load, [id]);
 
   const completeAction = async (action, reason) => {
+    if (actionInProgress.current) return;
+    actionInProgress.current = true;
     setBusy(true); setRequestId('');
     try {
-      const result = action === 'approve' ? await adminApi.approve(id) : await adminApi.reject(id, { reason });
-      const history = await adminApi.history(id);
-      setData({ ...result, history });
+      if (action === 'approve') await adminApi.approve(id);
+      else await adminApi.reject(id, { reason });
       setDialog(null);
       toast.success(action === 'approve' ? 'Restaurant approved.' : 'Restaurant rejected.');
+      load();
     } catch (failure) {
       const mapped = mapApiError(failure);
       setRequestId(mapped.requestId || '');
       if (mapped.status === 409) { setDialog(null); toast.error('The restaurant status changed. Details were refreshed.'); load(); }
       else toast.error(mapped.message || 'The action could not be completed.');
-    } finally { setBusy(false); }
+    } finally { actionInProgress.current = false; setBusy(false); }
   };
 
   if (loading) return <Card><LoadingState label="Loading restaurant details…" /></Card>;
