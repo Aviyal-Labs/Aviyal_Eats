@@ -40,6 +40,7 @@ def test_valid_google_token(mock_verify):
     assert user.email_authoritative is True
 
     assert mock_verify.call_args.args[2] == CLIENT_ID
+    assert mock_verify.call_args.kwargs["clock_skew_in_seconds"] == 60
 
 
 @override_settings(GOOGLE_OAUTH_CLIENT_ID=CLIENT_ID)
@@ -139,3 +140,50 @@ def test_workspace_email_is_authoritative(mock_verify):
     user = verify_google_credential("test-credential")
 
     assert user.email_authoritative is True
+
+
+@override_settings(GOOGLE_OAUTH_CLIENT_ID=CLIENT_ID)
+@pytest.mark.parametrize("message,reason", [
+    ("Token used too early, private-token-data", "issued_in_future_check_server_clock"),
+    ("Token expired, private-token-data", "expired"),
+    ("Token has wrong audience private-token-data", "audience_mismatch"),
+    ("Wrong number of segments in token: private-token-data", "malformed_token"),
+    ("private-token-data", "verification_failed"),
+])
+@patch("accounts.google_auth.id_token.verify_oauth2_token")
+def test_verification_logs_safe_reason_without_token_details(mock_verify, message, reason, caplog):
+    mock_verify.side_effect = ValueError(message)
+    with pytest.raises(InvalidGoogleToken):
+        verify_google_credential("private-token-data")
+    assert f"reason={reason}" in caplog.text
+    assert "private-token-data" not in caplog.text
+
+
+@override_settings(GOOGLE_OAUTH_CLIENT_ID=CLIENT_ID)
+@pytest.mark.parametrize("issued_offset,expiry_offset,accepted", [
+    (30, 3600, True),
+    (120, 3600, False),
+    (-3600, -120, False),
+])
+def test_signed_google_token_clock_tolerance(issued_offset, expiry_offset, accepted):
+    import time
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from google.auth import crypt, jwt
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = key.private_bytes(serialization.Encoding.PEM,
+                                    serialization.PrivateFormat.PKCS8,
+                                    serialization.NoEncryption())
+    public_pem = key.public_key().public_bytes(serialization.Encoding.PEM,
+                                              serialization.PublicFormat.SubjectPublicKeyInfo)
+    now = int(time.time())
+    payload = google_payload(iat=now + issued_offset, exp=now + expiry_offset)
+    token = jwt.encode(crypt.RSASigner.from_string(private_pem, key_id="test-key"), payload).decode()
+    # Replace only certificate retrieval; exercise real signature and time checks.
+    with patch("google.oauth2.id_token._fetch_certs", return_value={"test-key": public_pem}):
+        if accepted:
+            assert verify_google_credential(token).google_sub == "google-sub-123"
+        else:
+            with pytest.raises(InvalidGoogleToken):
+                verify_google_credential(token)

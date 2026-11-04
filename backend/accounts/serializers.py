@@ -145,7 +145,7 @@ class GoogleSignupSerializer(serializers.Serializer):
     )
 
     restaurant_name = serializers.CharField(
-        max_length=255,
+        max_length=200,
     )
 
     restaurant_phone = serializers.CharField(
@@ -161,14 +161,13 @@ class GoogleSignupSerializer(serializers.Serializer):
     )
 
     def validate_mobile(self, value):
-        value = value.strip()
+        try:
+            return UserManager.normalize_mobile(value)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc))
 
-        if not value:
-            raise serializers.ValidationError(
-                "Mobile number is required."
-            )
-
-        return value
+    def validate_restaurant_phone(self, value):
+        return self.validate_mobile(value)
 
     def validate_requested_slug(self, value):
         return value.strip().lower()

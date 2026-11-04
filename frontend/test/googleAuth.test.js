@@ -43,6 +43,9 @@ test('Google onboarding validates phone format and slug without email claims', (
   assert.equal(googleSignupSchema.parse(values).mobile, '+919876543210');
   assert.equal(googleSignupSchema.safeParse({ ...values, mobile: 'not-a-phone' }).success, false);
   assert.equal(googleSignupSchema.safeParse({ ...values, requested_slug: '../other' }).success, false);
+  assert.equal(googleSignupSchema.safeParse({ ...values, restaurant_phone: '9876543211' }).success, false);
+  assert.equal(googleSignupSchema.safeParse({ ...values, restaurant_name: 'x'.repeat(201) }).success, false);
+  assert.equal(googleSignupSchema.safeParse({ ...values, restaurant_name: 'x'.repeat(200) }).success, true);
 });
 
 test('unknown role and restaurant state never fall back to owner pending', () => {
