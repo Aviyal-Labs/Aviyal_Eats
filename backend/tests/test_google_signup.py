@@ -29,7 +29,7 @@ def signup_data(**changes):
         "credential": "mock-google-credential",
         "mobile": "+919876543210",
         "restaurant_name": "Google Signup Kitchen",
-        "restaurant_phone": "9876543211",
+        "restaurant_phone": "+919876543211",
         "city": "Kochi",
         "requested_slug": "google-signup-kitchen",
     }
@@ -191,3 +191,39 @@ def test_duplicate_google_signup_is_rejected(mock_verify):
     assert User.objects.count() == 1
     assert GoogleIdentity.objects.count() == 1
     assert Restaurant.objects.count() == 1
+
+
+@pytest.mark.parametrize("field,value", [
+    ("mobile", "not-a-phone"),
+    ("restaurant_phone", "9876543211"),
+    ("restaurant_name", "x" * 201),
+])
+@patch("accounts.google_services.verify_google_credential")
+def test_invalid_signup_fields_rejected_before_identity_verification(mock_verify, field, value):
+    response = Client().post(URL, data=signup_data(**{field: value}), content_type="application/json")
+    assert response.status_code == 400
+    assert field in response.json()
+    mock_verify.assert_not_called()
+
+
+@pytest.mark.django_db
+@patch("accounts.google_services.verify_google_credential")
+def test_google_signup_normalizes_phone_numbers(mock_verify):
+    mock_verify.return_value = google_user()
+    response = Client().post(URL, data=signup_data(
+        mobile="+91 (98765) 43210", restaurant_phone="+91 98765-43211",
+    ), content_type="application/json")
+    assert response.status_code == 201
+    owner = User.objects.get(email=google_user().email)
+    assert owner.mobile == "+919876543210"
+    assert owner.restaurant.phone == "+919876543211"
+
+
+@pytest.mark.parametrize("url", ["/api/v1/auth/google/login/", URL])
+@patch("accounts.google_auth.id_token.verify_oauth2_token", side_effect=ValueError("Expired token"))
+def test_invalid_google_credential_returns_401_for_reauthentication(mock_verify, url, settings):
+    settings.GOOGLE_OAUTH_CLIENT_ID = "test-client.apps.googleusercontent.com"
+    response = Client().post(url, data=signup_data(), content_type="application/json")
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid Google authentication token."
+    assert response["WWW-Authenticate"] == 'Bearer realm="google"'

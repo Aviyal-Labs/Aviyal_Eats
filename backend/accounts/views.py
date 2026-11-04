@@ -434,10 +434,16 @@ class PasswordResetConfirmView(APIView):
 # ----------------------------------
 #      Google Login View
 # -----------------------------------
-class GoogleLoginView(APIView):
+class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    def get_authenticate_header(self, request):
+        # Preserve AuthenticationFailed's 401 so onboarding can renew a token.
+        return 'Bearer realm="google"'
+
+
+class GoogleLoginView(GoogleAuthView):
     def post(self, request):
         serializer = GoogleLoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -493,9 +499,7 @@ class GoogleLoginView(APIView):
 #      Google SignUp View
 # -----------------------------------
 
-class GoogleSignupView(APIView):
-    permission_classes = [AllowAny]
-    authentication_classes = []
+class GoogleSignupView(GoogleAuthView):
 
     def post(self, request):
         serializer = GoogleSignupSerializer(
